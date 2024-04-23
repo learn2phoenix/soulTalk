@@ -1,7 +1,7 @@
 import logging
 import whisper
 import torch
-
+import uuid
 from TTS.api import TTS
 
 # https://github.com/saba99/TTS-MultiLingual/tree/master
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 # TODO: Implement config file
 transcription_model = whisper.load_model("large-v3")
 tts_model_name = "tts_models/fr/mai/tacotron2-DDC"
-tts = TTS(tts_model_name, progress_bar=False, gpu=True)
+tts_model = TTS(tts_model_name, progress_bar=False, gpu=True)
 
 
 # TODO: Implement whisper and transcribe models as a service. We can't afford to load them each time. Actually depends,
@@ -23,10 +23,10 @@ def translate_audio(input_audio_file: str, output_audio_file: str, task='transcr
     """Translate the audio from one language to another"""
     # TODO: Implement config file
     result = transcription_model.transcribe(input_audio_file, task=task, language=language)
-
-    tts.tts_to_file(text=result['text'], file_path="output_french.wav")
+    tmp_filename = uuid.uuid4()
+    tts_model.tts_to_file(text=result['text'], file_path=f'/tmp/{tmp_filename}')
 
     tts = TTS(model_name="voice_conversion_models/multilingual/vctk/freevc24", progress_bar=False, gpu=True)
-    tts.voice_conversion_to_file(source_wav="output_french.wav",
+    tts.voice_conversion_to_file(source_wav=f'/tmp/{tmp_filename}',
                                  target_wav="data/audio/examples/very_short_gladiator.wav",
-                                 file_path="output_french_converted.wav")
+                                 file_path=output_audio_file)

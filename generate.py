@@ -6,7 +6,7 @@ import os
 from logging import handlers
 
 from soulTalk_diff2lip import generate
-from src import translate
+from src import translate, voice_mod
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +43,14 @@ def translate_audio(input_audio_file: str, output_audio_file: str):
     translate.translate_audio(input_audio_file, output_audio_file)
 
 
-def main():
-    args = parse_args()
+def main(args):
     # TODO: Implement config
-    extract_audio(args.input, "temp/output.wav")
-    translate_audio("temp/output.wav", "temp/output_french.wav")
+    extract_audio(args.input, "/tmp/output.wav")
+    translate_audio("/tmp/output.wav", "/tmp/output_french.wav")
+    # TODO: Replace the reference voice in the following function with the output from demucs
+    voice_mod.modulate("/tmp/output_french.wav", "/tmp/output.wav", "/tmp/output_mod.wav")
 
+
+if __name__ == '__main__':
+    args = parse_args()
+    main(args)
