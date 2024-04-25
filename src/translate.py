@@ -24,9 +24,15 @@ def translate_audio(input_audio_file: str, output_audio_file: str, task='transcr
     # TODO: Implement config file
     result = transcription_model.transcribe(input_audio_file, task=task, language=language)
     tmp_filename = uuid.uuid4()
-    tts_model.tts_to_file(text=result['text'], file_path=f'/tmp/{tmp_filename}')
 
     tts = TTS(model_name="voice_conversion_models/multilingual/vctk/freevc24", progress_bar=False, gpu=True)
-    tts.voice_conversion_to_file(source_wav=f'/tmp/{tmp_filename}',
+
+    for segment in result['segments']:
+        start = segment['start']
+        end = segment['end']
+        text = segment['text']
+
+        tts_model.tts_to_file(text=text, file_path=f"/tmp/{tmp_filename}_{start}_{end}.wav")
+        tts.voice_conversion_to_file(source_wav=f"/tmp/{tmp_filename}_{start}_{end}.wav",
                                  target_wav="data/audio/examples/very_short_gladiator.wav",
-                                 file_path=output_audio_file)
+                                 file_path=f"/tmp/{tmp_filename}_{start}_{end}_converted.wav")
