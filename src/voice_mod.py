@@ -1,3 +1,4 @@
+import demucs.separate
 import torch
 import torchaudio
 
@@ -11,3 +12,8 @@ def modulate(src, ref, out):
 
     out_wav = knn_vc.match(query_seq, matching_set, topk=4)
     torchaudio.save(out, out_wav[None], 16000)
+
+
+def voice_sep(src, out_human, out_background):
+    """Separates the voice from the background music"""
+    demucs.separate.main(["--two-stems", "vocals", "-n", "mdx_extra", "--segment", "20", "--shifts=2", src])

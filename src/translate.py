@@ -19,7 +19,7 @@ tts_model = TTS(tts_model_name, progress_bar=False, gpu=True)
 # TODO: Implement whisper and transcribe models as a service. We can't afford to load them each time. Actually depends,
 #  if we are using AWS workers,then either we use a single worker for entire processing, in which case we have to load
 #  inside each job. Otherwise we need to have some persistent machines for heavier models. Decision for future ;)
-def translate_audio(input_audio_file: str, output_audio_file: str, task='transcribe', language='fr'):
+def translate_audio(input_audio_file: str, target_audio_file: str, output_audio_file: str, task='transcribe', language='fr'):
     """Translate the audio from one language to another"""
     # TODO: Implement config file
     result = transcription_model.transcribe(input_audio_file, task=task, language=language)
@@ -28,5 +28,5 @@ def translate_audio(input_audio_file: str, output_audio_file: str, task='transcr
 
     tts = TTS(model_name="voice_conversion_models/multilingual/vctk/freevc24", progress_bar=False, gpu=True)
     tts.voice_conversion_to_file(source_wav=f'/tmp/{tmp_filename}',
-                                 target_wav="data/audio/examples/very_short_gladiator.wav",
+                                 target_wav=target_audio_file,
                                  file_path=output_audio_file)
