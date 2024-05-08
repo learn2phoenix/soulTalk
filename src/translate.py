@@ -19,14 +19,24 @@ tts_model = TTS(tts_model_name, progress_bar=False, gpu=True)
 # TODO: Implement whisper and transcribe models as a service. We can't afford to load them each time. Actually depends,
 #  if we are using AWS workers,then either we use a single worker for entire processing, in which case we have to load
 #  inside each job. Otherwise we need to have some persistent machines for heavier models. Decision for future ;)
-def translate_audio(input_audio_file: str, target_audio_file: str, output_audio_file: str, task='transcribe', language='fr'):
+def translate_audio(input_audio_file: str, target_audio_file: str, temp_dir: str, task='transcribe', language='fr'):
     """Translate the audio from one language to another"""
     # TODO: Implement config file
     result = transcription_model.transcribe(input_audio_file, task=task, language=language)
     tmp_filename = uuid.uuid4()
-    tts_model.tts_to_file(text=result['text'], file_path=f'/tmp/{tmp_filename}')
 
     tts = TTS(model_name="voice_conversion_models/multilingual/vctk/freevc24", progress_bar=False, gpu=True)
-    tts.voice_conversion_to_file(source_wav=f'/tmp/{tmp_filename}',
-                                 target_wav=target_audio_file,
-                                 file_path=output_audio_file)
+    for segment in result['segments']:
+        start = segment['start']
+        end = segment['end']
+        text = segment['text']
+        try:
+            tts_model.tts_to_file(text=text, file_path=f"{temp_dir}/{tmp_filename}_{start}_{end}.wav")
+            tts.voice_conversion_to_file(source_wav=f"{temp_dir}/{tmp_filename}_{start}_{end}.wav",
+                                     target_wav=target_audio_file,
+                                     file_path=f"{temp_dir}/{tmp_filename}_{start}_{end}_converted.wav")
+        except Exception as e:
+            logger.error(f"Error in translating audio: {e}")
+            continue
+
+    return tmp_filename, result['segments']
