@@ -10,7 +10,10 @@ import shutil
 import subprocess
 from logging import handlers
 
-from soulTalk_diff2lip import generate
+from soulTalk_diff2lip.generate import generate
+from soulTalk_diff2lip.guided_diffusion.script_util import (
+    tfg_model_and_diffusion_defaults,
+)
 from src import translate, voice_mod
 
 logger = logging.getLogger(__name__)
@@ -79,6 +82,105 @@ def merge_wav_files_with_silence(file_list, timestamps, temp_dir, out_file):
     shutil.move(f"{temp_dir}/temp_merged_old.wav", out_file)
 
 
+
+
+def str2bool(v):
+    """
+    https://stackoverflow.com/questions/15008758/parsing-boolean-values-with-argparse
+    """
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ("yes", "true", "t", "y", "1"):
+        return True
+    elif v.lower() in ("no", "false", "f", "n", "0"):
+        return False
+    else:
+        raise argparse.ArgumentTypeError("boolean value expected")
+
+
+
+def diff2lip_get_args(config):
+    defaults = dict(
+        # generate from a single audio-video pair
+        save_orig = True,
+
+        use_fp16 = True,
+        #tfg specific
+        face_hide_percentage=0.5,
+        use_ref=False,
+        use_audio=False,
+        audio_as_style=False,
+        audio_as_style_encoder_mlp=False,
+        
+        #data args
+        nframes=1,
+        nrefer=0,
+        image_size=128,
+        syncnet_T = 5,
+        syncnet_mel_step_size = 16,
+        audio_frames_per_video = 16, #for tfg model, we use sound corresponding to 5 frames centred at that frame
+        audio_dim=80,
+        is_voxceleb2=True,
+
+        video_fps=25,
+        sample_rate=16000, #audio sampling rate
+        mel_steps_per_sec=80.,
+
+        #sampling args
+        clip_denoised=True, # not used in training
+        sampling_batch_size=2,
+        use_ddim=False,
+        model_path="",
+        sample_path="d2l_gen",
+        sample_partition="",
+        sampling_seed=1111,
+        sampling_use_gt_for_ref=False,
+        sampling_ref_type='gt', #one of ['gt', 'first_frame', 'random']
+        sampling_input_type='gt', #one of ['gt', 'first_frame']
+        
+        # face detection args
+        face_det_batch_size=64,
+        pads = "0,0,0,0"
+    )
+    defaults.update(tfg_model_and_diffusion_defaults())
+    diff2lip_args = argparse.Namespace()
+    #setting default arguments
+    for k,v in defaults.items():
+        setattr(diff2lip_args, k, v)
+    #adding arguments from config to args
+    for k,v in config.items('diff2lip'):
+        default_v = defaults.get(k)
+        if default_v is None: # if default is none, then the value can be of anytype
+            pass
+        elif isinstance(default_v, bool):
+            v = str2bool(v)
+        elif isinstance(default_v, int):
+            v = int(v)
+        elif isinstance(default_v, float):
+            v = float(v)
+        setattr(diff2lip_args, k, v)
+    return diff2lip_args
+
+def args_to_dict(args, keys, out_path):
+    return {k: getattr(args, k) for k in keys}
+
+def diff2lip_generate(config, video_path, audio_path, out_path):
+    diff2lip_args = diff2lip_get_args(config)
+    model, diffusion = tfg_create_model_and_diffusion(
+        **args_to_dict(args, tfg_model_and_diffusion_defaults().keys())
+    )
+    model.load_state_dict(
+            dist_util.load_state_dict(config.model_path, map_location='cpu')
+    )
+    model.to('cuda')
+    if config.use_fp16:
+        model.convert_to_fp16()
+    model.eval()
+    detector = face_detection.FaceAlignment(face_detection.LandmarksType._2D, flip_input=False, device='cuda' if torch.cuda.is_available() else 'cpu')
+    generate(video_path, audio_path, model, diffusion, detector,  diff2lip_args, out_path=out_path, save_orig=diff2lip_args.save_orig)
+
+
+
 def main(args):
     config = configparser.ConfigParser()
     config.read('config.ini')
@@ -121,6 +223,8 @@ def main(args):
 
     # TODO: Call diff2Lip here. Use output_human_final_modulated.wav as audio and args.input as video. We have already
     # imported from soulTalk_diff2lip import generate, so work from there
+
+    diff2lip_generate(config, video_path, audio_path, out_path)
 
 
 
