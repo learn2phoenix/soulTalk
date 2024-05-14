@@ -1,6 +1,7 @@
 """"Initial file for a POC for the pipeline"""
 
 import argparse
+import configparser
 import glob
 import librosa
 import logging
@@ -79,7 +80,9 @@ def merge_wav_files_with_silence(file_list, timestamps, temp_dir, out_file):
 
 
 def main(args):
-    # TODO: Implement config
+    config = configparser.ConfigParser()
+    config.read('config.ini')
+
     os.makedirs(args.temp_dir, exist_ok=True)
     extract_audio(args.input, f"{args.temp_dir}/{args.input.split('/')[-1].split('.')[0]}.wav")
     voice_mod.voice_sep(args.ref)
@@ -115,6 +118,9 @@ def main(args):
     voice_mod.modulate(f"{args.temp_dir}/output_human_final_16k.wav",
                        [f"separated/mdx_extra/{args.ref.split('/')[-1].split('.')[0]}/vocals_16k.wav",],
                        f"{args.temp_dir}/output_human_final_modulated.wav")
+
+    # TODO: Call diff2Lip here. Use output_human_final_modulated.wav as audio and args.input as video. We have already
+    # imported from soulTalk_diff2lip import generate, so work from there
 
 
 
