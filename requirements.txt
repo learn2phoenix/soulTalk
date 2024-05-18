@@ -1,0 +1,13 @@
+# requirements for translation
+openai-whisper
+TTS
+# requirements for voice modulation
+demucs
+# requirements for diff2lip
+opencv-python==4.5.5.64
+opencv-contrib-python==4.6.0.66
+torchvision
+blobfile
+mpi4py-mpich==3.1.2
+gdown
+av
