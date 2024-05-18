@@ -9,11 +9,17 @@ import os
 import shutil
 import subprocess
 from logging import handlers
+import gdown
+import torch
 
 from soulTalk_diff2lip.generate import generate
-from soulTalk_diff2lip.guided_diffusion.script_util import (
+from soulTalk_diff2lip.guided_diffusion.guided_diffusion.script_util import (
     tfg_model_and_diffusion_defaults,
+    tfg_create_model_and_diffusion,
+    args_to_dict
 )
+from soulTalk_diff2lip.guided_diffusion.guided_diffusion import dist_util
+from soulTalk_diff2lip.face_detection import LandmarksType, FaceAlignment
 from src import translate, voice_mod
 
 logger = logging.getLogger(__name__)
@@ -161,22 +167,32 @@ def diff2lip_get_args(config):
         setattr(diff2lip_args, k, v)
     return diff2lip_args
 
-def args_to_dict(args, keys, out_path):
-    return {k: getattr(args, k) for k in keys}
+# def args_to_dict(args, keys, out_path):
+#     return {k: getattr(args, k) for k in keys}
+
+def diff2lip_download_checkpoint(url, output_path):
+    gdown.download(url, output_path, quiet=False)
+
 
 def diff2lip_generate(config, video_path, audio_path, out_path):
     diff2lip_args = diff2lip_get_args(config)
+    if diff2lip_args.model_path.startswith('http'):
+        os.makedirs('checkpoints', exist_ok=True)
+        ckpt_path = 'checkpoints/diff2lip_model.pt'
+        if not os.path.exists(ckpt_path):
+            diff2lip_download_checkpoint(diff2lip_args.model_path, ckpt_path)
+        diff2lip_args.model_path = ckpt_path
     model, diffusion = tfg_create_model_and_diffusion(
-        **args_to_dict(args, tfg_model_and_diffusion_defaults().keys())
+        **args_to_dict(diff2lip_args, tfg_model_and_diffusion_defaults().keys())
     )
     model.load_state_dict(
-            dist_util.load_state_dict(config.model_path, map_location='cpu')
+            dist_util.load_state_dict(diff2lip_args.model_path, map_location='cpu')
     )
     model.to('cuda')
-    if config.use_fp16:
+    if diff2lip_args.use_fp16:
         model.convert_to_fp16()
     model.eval()
-    detector = face_detection.FaceAlignment(face_detection.LandmarksType._2D, flip_input=False, device='cuda' if torch.cuda.is_available() else 'cpu')
+    detector = FaceAlignment(LandmarksType._2D, flip_input=False, device='cuda' if torch.cuda.is_available() else 'cpu')
     generate(video_path, audio_path, model, diffusion, detector,  diff2lip_args, out_path=out_path, save_orig=diff2lip_args.save_orig)
 
 
@@ -200,7 +216,8 @@ def main(args):
     #     segments = pickle.load(f)
     # Joining the audio files with gaps between them
     timestamps = []
-    tmp_files = glob.glob(f"{args.temp_dir}/{'3f303e25-87a1-49ec-90a3-dc0f579b8c47'}_*.wav")
+    # tmp_files = glob.glob(f"{args.temp_dir}/{'3f303e25-87a1-49ec-90a3-dc0f579b8c47'}_*.wav")
+    tmp_files = glob.glob(f"{args.temp_dir}/{str(tmp_filename)}_*.wav")
     for segment in segments:
         timestamps.append(segment['start'])
         timestamps.append(segment['end'])
@@ -221,10 +238,16 @@ def main(args):
                        [f"separated/mdx_extra/{args.ref.split('/')[-1].split('.')[0]}/vocals_16k.wav",],
                        f"{args.temp_dir}/output_human_final_modulated.wav")
 
-    # TODO: Call diff2Lip here. Use output_human_final_modulated.wav as audio and args.input as video. We have already
-    # imported from soulTalk_diff2lip import generate, so work from there
+    # # TODO: Call diff2Lip here. Use output_human_final_modulated.wav as audio and args.input as video. We have already
+    # # imported from soulTalk_diff2lip import generate, so work from there
 
-    diff2lip_generate(config, video_path, audio_path, out_path)
+    diff2lip_generate(
+        config=config, 
+        video_path = args.input, 
+        audio_path = f"{args.temp_dir}/output_human_final_modulated.wav", 
+        out_path = f"{args.temp_dir}/translated_video.mp4"
+    )
+
 
 
 
