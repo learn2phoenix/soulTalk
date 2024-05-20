@@ -85,7 +85,10 @@ def merge_wav_files_with_silence(file_list, timestamps, temp_dir, out_file):
             command.extend(['-map', '[out]'])
             command.append(f"{temp_dir}/temp_merged.wav")
             subprocess.run(command)
-    shutil.move(f"{temp_dir}/temp_merged_old.wav", out_file)
+    if len(file_list) == 1:
+        shutil.move(file_list[0], out_file)
+    else:
+        shutil.move(f"{temp_dir}/temp_merged_old.wav", out_file)
 
 
 
@@ -217,7 +220,7 @@ def main(args):
     # Joining the audio files with gaps between them
     timestamps = []
     # tmp_files = glob.glob(f"{args.temp_dir}/{'3f303e25-87a1-49ec-90a3-dc0f579b8c47'}_*.wav")
-    tmp_files = glob.glob(f"{args.temp_dir}/{str(tmp_filename)}_*.wav")
+    tmp_files = glob.glob(f"{args.temp_dir}/{str(tmp_filename)}*_converted.wav")
     for segment in segments:
         timestamps.append(segment['start'])
         timestamps.append(segment['end'])
@@ -242,9 +245,9 @@ def main(args):
     # # imported from soulTalk_diff2lip import generate, so work from there
 
     diff2lip_generate(
-        config=config, 
-        video_path = args.input, 
-        audio_path = f"{args.temp_dir}/output_human_final_modulated.wav", 
+        config=config,
+        video_path = args.input,
+        audio_path = f"{args.temp_dir}/output_human_final_modulated.wav",
         out_path = f"{args.temp_dir}/translated_video.mp4"
     )
 
